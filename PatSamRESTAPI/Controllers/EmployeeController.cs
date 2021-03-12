@@ -1,10 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using PatSamRESTAPI.Contexts;
 using PatSamRESTAPI.Models;
 
@@ -16,22 +21,52 @@ namespace PatSamRESTAPI.Controllers
     public class EmployeeController : Controller
     {
         private readonly PatSamDbContext _context;
+        private static string _urlBase;
+
         public EmployeeController(PatSamDbContext context)
         {
             _context = context;
+
+            var builder = new ConfigurationBuilder()
+                    .SetBasePath(Directory.GetCurrentDirectory())
+                    .AddJsonFile($"appsettings.json");
+            var config = builder.Build();
+
+            _urlBase = config.GetSection("API_Access:UrlBase").Value;
         }
 
         // GET: api/employee
 
         [HttpGet]
-        public async Task<IActionResult> GetEmployee() 
+        // public async Task<IActionResult> GetEmployee() 
+        public  object GetEmployee()
         {
             try
             {
-                var employee = await _context.Employee
+                //1. Consultar a api servidor e obter o token. Adicionar o header na requisição http
+                //2. Consultar a base de dados da api servidor e obter os empregados de lá
+                var token = new Servico().ObterTokenServico();
+                using (var client = new HttpClient())
+                {
+                    client.DefaultRequestHeaders.Authorization =
+                            new AuthenticationHeaderValue("Bearer", token);
+
+                    HttpResponseMessage response = client.GetAsync(
+                     _urlBase + "EmployeeService/GetAll/PatSamContext").Result;
+
+                    if (response.StatusCode == HttpStatusCode.OK)
+
+                        // return await Task.FromResult(new JsonResult(response.Content.ReadAsStringAsync().Result));
+                        return new JsonResult(response.Content.ReadAsStringAsync().Result).Value;
+                    else
+                        Console.WriteLine("Token provavelmente expirado!");
+                }
+                
+               /* var employee = await _context.Employee ***EXEMPLO ACESSANDO A BASE LOCAL E N DO SERVIÇO
                .AsNoTracking()
                .ToListAsync();
                 return await Task.FromResult(new JsonResult(employee));
+               */
             }
             catch (Exception ex )
             {
